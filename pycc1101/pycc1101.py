@@ -126,7 +126,12 @@ class TICC1101(object):
         return self._spi.xfer([self.WRITE_SINGLE_BYTE | address, byte_data])
 
     def _readSingleByte(self, address):
-        return self._spi.xfer([self.READ_SINGLE_BYTE | address, 0x00])[1]
+        val1 = None
+        val2 = self._spi.xfer([self.READ_SINGLE_BYTE | address, 0x00])[1]
+        while val1 != val2:
+            val1 = val2
+            val2 = self._spi.xfer([self.READ_SINGLE_BYTE | address, 0x00])[1]
+        return val2
 
     def _readBurst(self, start_address, length):
         buff = []
@@ -506,21 +511,10 @@ class TICC1101(object):
             raise Exception("MODE NOT IMPLEMENTED")
 
         print dataToSend
+        self.sidle()
         self._writeBurst(self.TXFIFO, dataToSend)
         self._usDelay(2000)
         self._setTXState()
-        marcstate = self._getMRStateMachineState()
-
-        if marcstate not in [0x13, 0x14, 0x15]:  # RX, RX_END, RX_RST
-            self.sidle()
-            self._flushTXFifo()
-            self._setRXState()
-
-            if self.debug:
-                print "senData | FAIL"
-                print "sendData | MARCSTATE: %x" % self._readSingleByte(self.MARCSTATE)
-
-            return False
 
         remaining_bytes = self._readSingleByte(self.TXBYTES) & 0x7F
         while remaining_bytes != 0:
